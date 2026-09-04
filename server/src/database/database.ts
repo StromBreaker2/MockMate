@@ -1,27 +1,28 @@
 import mongoose from "mongoose";
+import dotenv from "dotenv";
 
-const MONGO_URI = process.env.MONGO_URI as string;
+dotenv.config();
 
-if (!MONGO_URI) {
-    throw new Error("MONGO_URI is not defined in environment variables");
-}
-
-let isConnected = false; 
+let isConnected = false;
 
 export const connectDB = async () => {
-    if (isConnected) {
-        console.log("Using existing MongoDB connection");
-        return;
-    }
+  if (isConnected) {
+    return;
+  }
 
-    try {
-        const db = await mongoose.connect(MONGO_URI, {});
-        isConnected = db.connections[0].readyState === 1;
-        console.log("MongoDB connected successfully");
-    } catch (error) {
-        console.error("MongoDB connection error:", error);
-        throw new Error("Failed to connect to MongoDB");
+  const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/mockmate";
+
+  try {
+    const db = await mongoose.connect(MONGO_URI, {});
+    isConnected = db.connections[0].readyState === 1;
+    console.log("✅ MongoDB connected successfully to:", MONGO_URI.replace(/\/\/.*@/, "//***@"));
+  } catch (error) {
+    console.error("❌ MongoDB connection error:", error);
+    // In dev, warn rather than crash immediately to allow diagnostics
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("Failed to connect to MongoDB");
     }
+  }
 };
 
 export default connectDB;

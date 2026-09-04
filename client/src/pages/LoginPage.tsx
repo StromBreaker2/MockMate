@@ -1,170 +1,155 @@
-import { cn } from "@/utils/lib/utils";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import React, { useEffect, useState } from "react";
-import Loader from "../components/Loader/Loader";
+import React, { useState } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { loginUser } from "@/api/user.api";
-import { useNotification } from "../components/Notifications/NotificationContext";
-import { Notification } from "@/vite-env";
-import { Link, useNavigate } from "react-router-dom";
-import { Eye, EyeOff } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { useNotification } from "@/components/Notifications/NotificationContext";
+import { Sparkles, Eye, EyeOff, ArrowRight } from "lucide-react";
 
-import { signInWithPopup } from "firebase/auth";
-import { auth, googleProvider } from "@/utils/firebase/firebase";
-
-export function LoginPage({
-  className,
-  ...props
-}: React.ComponentPropsWithoutRef<"div">) {
+export function LoginPage() {
   const { addNotification } = useNotification();
-  const [loading, setLoading] = useState(false);
+  const { refreshUser } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const navigate = useNavigate();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleLogin = async () => {
-    const formData = {
-      email,
-      password,
-    };
+  const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state as any)?.from?.pathname;
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim() || !password) {
+      addNotification({
+        id: Date.now().toString(),
+        type: "warning",
+        message: "Please enter both email and password",
+      });
+      return;
+    }
+
     try {
-      await loginUser(formData);
-      const newNotification: Notification = {
+      setIsSubmitting(true);
+      const response = await loginUser({
+        email: email.trim().toLowerCase(),
+        password,
+      });
+
+      addNotification({
         id: Date.now().toString(),
         type: "success",
-        message: "Login Successful",
-      };
-      addNotification(newNotification);
-      navigate("/dashboard");
-    } catch (error) {
-      const newNotification: Notification = {
+        message: "Login successful!",
+      });
+
+      const updatedUser = await refreshUser();
+      const userRole = updatedUser?.role || response?.user?.role || "candidate";
+
+      if (from) {
+        navigate(from, { replace: true });
+      } else if (userRole === "recruiter") {
+        navigate("/recruiter", { replace: true });
+      } else if (userRole === "admin") {
+        navigate("/admin", { replace: true });
+      } else {
+        navigate("/dashboard", { replace: true });
+      }
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.message || "Invalid credentials or login failure";
+      addNotification({
         id: Date.now().toString(),
         type: "error",
-        message: `${(error as any).response.data.message}`,
-      };
-      addNotification(newNotification);
+        message: errorMsg,
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const handleGoogleSigin = async () => {
-      try {
-        const result = await signInWithPopup(auth, googleProvider);
-        // console.log((result as any)._tokenResponse);
-        const idToken = (result as any)._tokenResponse.idToken;
-        await loginUser({firebaseUID: idToken});
-        const newNotification: Notification = {
-          id: Date.now().toString(),
-          type: "success",
-          message: "Login Sucessfull",
-        };
-        addNotification(newNotification);
-        navigate("/dashboard");
-      } catch (error) {
-        // console.error("Test", error);
-        const newNotification: Notification = {
-          id: Date.now().toString(),
-          type: "error",
-          message: `${(error as any).response.data.message}`,
-        };
-        addNotification(newNotification);
-      }
-    };
-
-  useEffect(() => {
-    setTimeout(() => {
-      setLoading(false);
-    }, 2000);
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <Loader />
-      </div>
-    );
-  }
   return (
-    <div className="h-screen w-screen flex justify-center items-center">
-      <div
-        className={cn("flex flex-col gap-6 max-w-4xl", className)}
-        {...props}
-      >
-        <Card className="bg-gray-200">
-          <CardHeader>
-            <CardTitle className="text-2xl">Login</CardTitle>
-            <CardDescription>
-              Enter your email below to login to your account
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={(e) => e.preventDefault()}>
-              <div className="flex flex-col gap-6">
-                <div className="grid gap-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="m@example.com"
-                    required
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <div className="flex items-center">
-                    <Label htmlFor="password">Password</Label>
-                    <a
-                      href="#"
-                      className="ml-auto inline-block text-sm underline-offset-4 hover:underline"
-                    >
-                      Forgot your password?
-                    </a>
-                  </div>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      required
-                      onChange={(e) => setPassword(e.target.value)}
-                    />
-                    <button
-                      type="button"
-                      className="absolute inset-y-0 right-3 flex items-center text-gray-500 hover:text-gray-700"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? (
-                        <Eye className="text-red-500" />
-                      ) : (
-                        <EyeOff />
-                      )}
-                    </button>
-                  </div>
-                </div>
-                <Button onClick={handleLogin} className="w-full">
-                  Login
-                </Button>
-                <Button onClick={handleGoogleSigin} variant="outline" className="w-full">
-                  Login with Google
-                </Button>
+    <div className="min-h-screen bg-[#0f0f11] flex items-center justify-center p-4 selection:bg-emerald-500 selection:text-black">
+      <div className="w-full max-w-md">
+        {/* Brand Header */}
+        <div className="text-center mb-6">
+          <Link to="/" className="inline-flex items-center gap-2 mb-2 group">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-slate-950 flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:scale-105 transition-transform">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <span className="text-xl font-bold text-white tracking-tight">MockMate AI</span>
+          </Link>
+          <h2 className="text-2xl font-bold text-white tracking-tight mt-2">Welcome Back</h2>
+          <p className="text-xs text-slate-400 mt-1">
+            Sign in to access your interview session or recruiter workspace
+          </p>
+        </div>
+
+        {/* Login Box */}
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-6 md:p-8 backdrop-blur-xl shadow-2xl">
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                Email Address
+              </label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="name@example.com"
+                className="w-full px-3.5 py-2.5 bg-slate-900/90 border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
+              />
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-medium text-slate-300">
+                  Password
+                </label>
               </div>
-              <div className="mt-4 text-center text-sm">
-                Don&apos;t have an account?{" "}
-                <Link to="/signup" className="underline underline-offset-4">
-                  Sign up
-                </Link>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full pl-3.5 pr-10 py-2.5 bg-slate-900/90 border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
-            </form>
-          </CardContent>
-        </Card>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full mt-2 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-semibold text-sm transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50 cursor-pointer"
+            >
+              {isSubmitting ? (
+                "Signing In..."
+              ) : (
+                <>
+                  Sign In
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </form>
+
+          <div className="mt-6 text-center text-xs text-slate-400">
+            Don't have an account yet?{" "}
+            <Link to="/signup" className="text-emerald-400 hover:text-emerald-300 font-medium underline underline-offset-4">
+              Create an account
+            </Link>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
+
+export default LoginPage;

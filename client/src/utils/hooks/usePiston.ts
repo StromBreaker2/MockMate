@@ -1,31 +1,45 @@
 import { useState } from "react";
 
-// Use the provided language versions
 export const LANGUAGE_VERSIONS = {
   javascript: "18.15.0",
   typescript: "5.0.3",
-  python3: "3.10.0", // Piston uses "python3" for Python.
+  python3: "3.10.0",
   java: "15.0.2",
   cpp: "10.2.0",
 };
 
 const PISTON_API = "https://emkc.org/api/v2/piston/execute";
 
-/**
- * Returns the valid runtime version for the given language.
- * Expects the language parameter to be one of the Piston identifiers
- * (e.g. "javascript", "typescript", "python3", "java", "cpp").
- */
 const getVersionForLanguage = (language: keyof typeof LANGUAGE_VERSIONS): string => {
   return LANGUAGE_VERSIONS[language] || "18.15.0";
 };
+
+export interface TestCase {
+  id?: string;
+  input: string;
+  expectedOutput: string;
+}
+
+export interface TestCaseResult {
+  input: string;
+  expectedOutput: string;
+  actualOutput: string;
+  passed: boolean;
+  executionTimeMs?: number;
+  error?: string;
+}
 
 export const usePiston = () => {
   const [output, setOutput] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [testResults, setTestResults] = useState<TestCaseResult[]>([]);
 
-  const runCode = async (code: string, language: keyof typeof LANGUAGE_VERSIONS, input: string) => {
+  const runCode = async (
+    code: string,
+    language: keyof typeof LANGUAGE_VERSIONS,
+    input: string = ""
+  ): Promise<string> => {
     setIsLoading(true);
     setOutput("");
     setError("");
@@ -34,12 +48,11 @@ export const usePiston = () => {
       const version = getVersionForLanguage(language);
 
       const body = {
-        language, // e.g., "python3", "javascript", "cpp", etc.
-        version,  // Use our helper to get the proper version string
+        language,
+        version,
         files: [
           {
-            // The filename is arbitrary; you may adjust the extension if desired.
-            name: `main.${language}`,
+            name: `main.${language === "python3" ? "py" : language === "cpp" ? "cpp" : language}`,
             content: code,
           },
         ],
@@ -49,9 +62,7 @@ export const usePiston = () => {
 
       const response = await fetch(PISTON_API, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
 
@@ -61,20 +72,55 @@ export const usePiston = () => {
       }
 
       const result = await response.json();
-
-      // Piston returns the run output under result.run.output
-      if (result.run && result.run.output) {
-        setOutput(result.run.output);
-      } else {
-        setError("No output received.");
-      }
+      const runOutput = result.run?.output || "";
+      setOutput(runOutput);
+      return runOutput;
     } catch (err: any) {
-      console.error(err);
-      setError(err.message || "An error occurred while running the code.");
+      console.error("Code execution error:", err);
+      const errMsg = err.message || "An error occurred while running the code.";
+      setError(errMsg);
+      return errMsg;
     } finally {
       setIsLoading(false);
     }
   };
 
-  return { runCode, output, error, isLoading };
+  const runTestCases = async (
+    code: string,
+    language: keyof typeof LANGUAGE_VERSIONS,
+    testCases: TestCase[]
+  ): Promise<{ allPassed: boolean; results: TestCaseResult[] }> => {
+    setIsLoading(true);
+    const results: TestCaseResult[] = [];
+
+    try {
+      for (const tc of testCases) {
+        const startTime = performance.now();
+        const actualOutput = await runCode(code, language, tc.input);
+        const duration = Math.round(performance.now() - startTime);
+
+        const cleanExpected = tc.expectedOutput.trim();
+        const cleanActual = actualOutput.trim();
+        const passed = cleanExpected === cleanActual;
+
+        results.push({
+          input: tc.input,
+          expectedOutput: tc.expectedOutput,
+          actualOutput,
+          passed,
+          executionTimeMs: duration,
+        });
+      }
+
+      setTestResults(results);
+      const allPassed = results.every((r) => r.passed);
+      return { allPassed, results };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return { runCode, runTestCases, output, error, isLoading, testResults };
 };
+
+export default usePiston;

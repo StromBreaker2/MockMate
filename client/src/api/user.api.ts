@@ -1,42 +1,57 @@
 import axios from "axios";
+import { UserRole } from "@/vite-env";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api";
 
 const API_URL = `${API_BASE_URL}/users`;
 
-interface RegisterUserPayload {
+// Helper to get auth header
+export const getAuthHeaders = () => {
+  const token = localStorage.getItem("token");
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+};
+
+export interface RegisterUserPayload {
   name: string;
   email: string;
   password: string;
+  role?: UserRole;
+  companyName?: string;
+  headline?: string;
+  adminSecret?: string;
   firebaseUID?: string;
 }
 
-interface LoginUserPayload {
+export interface LoginUserPayload {
   email?: string;
   password?: string;
   firebaseUID?: string;
 }
 
-interface EditUserPayload {
+export interface EditUserPayload {
   name?: string;
-  email?: string;
+  companyName?: string;
+  headline?: string;
+  bio?: string;
+  avatarUrl?: string;
+  parsedSkills?: string[];
 }
 
 export const getUser = async () => {
-  try{
+  try {
     const response = await axios.get(`${API_URL}/getuserdetails`, {
-      headers: {
-        "Content-Type": "application/json",
-      },
-      withCredentials: true
+      headers: getAuthHeaders(),
+      withCredentials: true,
     });
     return response.data;
-  }
-  catch(error){
-    console.error("Error getting user details:", (error as any).response.data.message);
+  } catch (error) {
+    console.error("Error getting user details:", (error as any).response?.data?.message);
     throw error;
   }
-}
+};
 
 // Register User
 export const registerUser = async (userData: RegisterUserPayload) => {
@@ -45,10 +60,14 @@ export const registerUser = async (userData: RegisterUserPayload) => {
       headers: {
         "Content-Type": "application/json",
       },
+      withCredentials: true,
     });
+    if (response.data?.token) {
+      localStorage.setItem("token", response.data.token);
+    }
     return response.data;
   } catch (error) {
-    console.error("Error logging in user:", (error as any).response.data.error);
+    console.error("Error registering user:", (error as any).response?.data?.error);
     throw error;
   }
 };
@@ -60,12 +79,14 @@ export const loginUser = async (userData: LoginUserPayload) => {
       headers: {
         "Content-Type": "application/json",
       },
-      withCredentials: true
+      withCredentials: true,
     });
-    // console.log("response", response);
+    if (response.data?.token) {
+      localStorage.setItem("token", response.data.token);
+    }
     return response.data;
   } catch (error) {
-    console.error("Error in user Registration:", (error as any).response.data.message);
+    console.error("Error in user Login:", (error as any).response?.data?.message);
     throw error;
   }
 };
@@ -74,13 +95,12 @@ export const loginUser = async (userData: LoginUserPayload) => {
 export const editUser = async (userData: EditUserPayload) => {
   try {
     const response = await axios.put(`${API_URL}/edit`, userData, {
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: getAuthHeaders(),
+      withCredentials: true,
     });
     return response.data;
   } catch (error) {
-    console.error("Error updating user:", (error as any).response.data.message);
+    console.error("Error updating user:", (error as any).response?.data?.message);
     throw error;
   }
 };
@@ -88,19 +108,20 @@ export const editUser = async (userData: EditUserPayload) => {
 // Logout User
 export const logoutUser = async () => {
   try {
+    localStorage.removeItem("token");
     const response = await axios.post(
-      `${API_URL}/logout`, 
-      {}, 
+      `${API_URL}/logout`,
+      {},
       {
-        headers: { "Content-Type": "application/json" },
-        withCredentials: true, // Ensures the request includes credentials
+        headers: getAuthHeaders(),
+        withCredentials: true,
       }
     );
-    
     return response.data;
   } catch (error) {
     console.error("Error logging out user:", (error as any).response?.data?.message);
     throw error;
   }
 };
+
 

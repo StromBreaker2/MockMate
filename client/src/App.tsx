@@ -1,4 +1,3 @@
-
 import { Routes, Route } from "react-router-dom";
 import "./App.css";
 import Dashboard from "./pages/Dashboard";
@@ -10,32 +9,89 @@ import InterviewInterfacePage from "./pages/InterviewInterfacePage";
 import CodeEditor from "./components/CodeEdior/CodeEditor";
 import { InterviewDetails } from "./pages/InterviewDetails";
 import NotFound from "./pages/NotFound";
-
+import ProtectedRoute from "./components/ProtectedRoute";
+import RecruiterDashboard from "./pages/recruiter/RecruiterDashboard";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import ResumeATSPage from "./pages/candidate/ResumeATSPage";
+import RoadmapLeaderboardPage from "./pages/candidate/RoadmapLeaderboardPage";
 
 function App() {
 
   return (
-    <div className="bg-[#212121] ">
-      <NotificationCard/>
+    <div className="bg-[#121214] min-h-screen text-slate-100 selection:bg-emerald-500 selection:text-black">
+      <NotificationCard />
       <div>
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/test" element={<CodeEditor />} />
+
+          {/* Candidate Protected Routes */}
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute allowedRoles={["candidate", "admin"]}>
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/resume-ats"
+            element={
+              <ProtectedRoute allowedRoles={["candidate", "admin"]}>
+                <ResumeATSPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/roadmap"
+            element={
+              <ProtectedRoute allowedRoles={["candidate", "admin"]}>
+                <RoadmapLeaderboardPage />
+              </ProtectedRoute>
+            }
+          />
+
+
           <Route
             path="/interviewinterface/:id"
-            element={<InterviewInterfacePage/>}
+            element={
+              <ProtectedRoute allowedRoles={["candidate", "admin"]}>
+                <InterviewInterfacePage />
+              </ProtectedRoute>
+            }
           />
           <Route
             path="/interviewdetails/:id"
-            element={<InterviewDetails/>}
+            element={
+              <ProtectedRoute>
+                <InterviewDetails />
+              </ProtectedRoute>
+            }
           />
+
+          {/* Recruiter Protected Routes */}
           <Route
-            path="/*"
-            element={<NotFound/>}
+            path="/recruiter"
+            element={
+              <ProtectedRoute allowedRoles={["recruiter", "admin"]}>
+                <RecruiterDashboard />
+              </ProtectedRoute>
+            }
           />
+
+          {/* Admin Protected Routes */}
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute allowedRoles={["admin"]}>
+                <AdminDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route path="/test" element={<CodeEditor />} />
+          <Route path="/*" element={<NotFound />} />
         </Routes>
       </div>
     </div>
@@ -43,3 +99,4 @@ function App() {
 }
 
 export default App;
+

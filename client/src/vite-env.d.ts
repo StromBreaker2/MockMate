@@ -26,16 +26,27 @@ export interface MockInterview {
   updatedAt?: Date;
 }
 
+export type UserRole = "candidate" | "recruiter" | "admin";
+
 export default interface User {
-  _id: Types.ObjectId;
+  _id?: string;
+  id?: string;
   name?: string;
   email?: string;
   password?: string;
+  role: UserRole;
+  companyName?: string;
+  headline?: string;
+  bio?: string;
+  avatarUrl?: string;
+  resumeUrl?: string;
+  parsedSkills?: string[];
   firebaseUID?: string;
-  interviewList: MockInterview[] | [];
-  createdAt?: Date;
-  updatedAt?: Date;
+  interviewList?: MockInterview[] | any[];
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
 }
+
 
 
 export interface Notification {

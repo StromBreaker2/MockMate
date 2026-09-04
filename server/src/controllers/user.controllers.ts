@@ -1,71 +1,98 @@
 import bcrypt from "bcryptjs";
 import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
-import { UserModel } from "../models/user.model";
+import { UserModel, UserRole } from "../models/user.model";
 import { validationResult } from "express-validator";
 import admin from "../firebase/firebase";
 
+const sanitizeUser = (user: any) => {
+  return {
+    id: user._id,
+    name: user.name,
+    email: user.email,
+    role: user.role || "candidate",
+    companyName: user.companyName,
+    headline: user.headline,
+    bio: user.bio,
+    avatarUrl: user.avatarUrl,
+    resumeUrl: user.resumeUrl,
+    parsedSkills: user.parsedSkills || [],
+    createdAt: user.createdAt,
+  };
+};
+
 export const getUser = async (req: Request, res: Response) => {
   try {
-    const user = {
-      ...req.user._doc,
-      password: undefined,
-      firebaseUID: undefined,
-      _id: undefined,
-      __v: undefined,
-    };
-    if (!user) {
+    if (!req.user) {
       return res.status(404).json({ message: "User not Authorized" });
     }
-    res.status(200).json(user);
+    return res.status(200).json(sanitizeUser(req.user));
   } catch (error) {
     console.error("Error fetching user:", error);
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
 export const registerUser = async (req: Request, res: Response) => {
-  const { name, email, password, firebaseUID } = req.body;
-  // console.log(name,email,password,firebaseUID);
+  const { name, email, password, firebaseUID, role, companyName, headline, adminSecret } = req.body;
   try {
     if (!name || !email || !(firebaseUID || password)) {
-      return res.status(400).json({ error: "All fields are required" });
+      return res.status(400).json({ error: "Name, email, and password are required" });
     }
 
-    // Check if the user already exists
-    let user = await UserModel.findOne({ email });
+    // Check if user already exists
+    let user = await UserModel.findOne({ email: email.toLowerCase() });
     if (user) {
       return res.status(400).json({ error: "User already exists" });
+    }
+
+    // Determine role (protect admin role creation)
+    let assignedRole: UserRole = "candidate";
+    if (role === "recruiter") {
+      assignedRole = "recruiter";
+    } else if (role === "admin") {
+      if (process.env.ADMIN_SECRET && adminSecret === process.env.ADMIN_SECRET) {
+        assignedRole = "admin";
+      } else {
+        return res.status(403).json({ error: "Unauthorized to register as admin" });
+      }
     }
 
     // Hash the password
     const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS || "10", 10);
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-    // Create a new user
+    // Create user
     user = new UserModel({
       name,
-      email,
+      email: email.toLowerCase(),
       password: hashedPassword,
       firebaseUID: firebaseUID || null,
+      role: assignedRole,
+      companyName: assignedRole === "recruiter" ? companyName : undefined,
+      headline: headline || (assignedRole === "recruiter" ? "Recruiter / Talent Partner" : "Candidate / Aspiring Engineer"),
     });
 
     await user.save();
 
-    // Generate a JWT token
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET as string, {
-      expiresIn: "1h",
-    });
+    // Generate JWT token
+    const token = jwt.sign(
+      { user: { id: user._id, role: user.role } },
+      process.env.JWT_SECRET as string,
+      { expiresIn: "7d" }
+    );
 
     res.cookie("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production", // Set to true in production
+      secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 18000000,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
-    // Send response
+
     return res.status(201).json({
       message: "User registered successfully",
+      token,
+      user: sanitizeUser(user),
     });
   } catch (error) {
     console.error("Error registering user:", error);
@@ -73,10 +100,7 @@ export const registerUser = async (req: Request, res: Response) => {
   }
 };
 
-export const loginUser = async (
-  req: Request,
-  res: Response
-): Promise<Response> => {
+export const loginUser = async (req: Request, res: Response): Promise<Response> => {
   try {
     const { email, password, firebaseUID } = req.body;
 
@@ -84,9 +108,7 @@ export const loginUser = async (
       try {
         const decodedToken = await admin.auth().verifyIdToken(firebaseUID);
         if (!decodedToken?.email) {
-          return res
-            .status(400)
-            .json({ message: "Invalid Firebase credentials" });
+          return res.status(400).json({ message: "Invalid Firebase credentials" });
         }
 
         const user = await UserModel.findOne({ email: decodedToken.email });
@@ -94,28 +116,23 @@ export const loginUser = async (
           return res.status(404).json({ message: "User not found" });
         }
 
-        return generateAndSendToken(res, user.id);
+        return generateAndSendToken(res, user);
       } catch (error) {
         console.error("Error in Firebase authentication:", error);
-        return res
-          .status(400)
-          .json({ message: "Invalid Firebase credentials" });
+        return res.status(400).json({ message: "Invalid Firebase credentials" });
       }
     }
 
-    // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
     }
 
     if (!email || !password) {
-      return res
-        .status(400)
-        .json({ message: "Email and password are required" });
+      return res.status(400).json({ message: "Email and password are required" });
     }
 
-    const user = await UserModel.findOne({ email });
+    const user = await UserModel.findOne({ email: email.toLowerCase() });
     if (!user || !user.password) {
       return res.status(400).json({ message: "Invalid credentials" });
     }
@@ -125,40 +142,40 @@ export const loginUser = async (
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    return generateAndSendToken(res, user.id);
+    return generateAndSendToken(res, user);
   } catch (error) {
     console.error("Error in user login:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
 
-export const logOutUser = async (
-  req: Request,
-  res: Response
-): Promise<Response> => {
+export const logOutUser = async (req: Request, res: Response): Promise<Response> => {
   res.clearCookie("token", {
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV === "production",
     sameSite: "strict",
   });
-  return Promise.resolve(
-    res.status(200).json({ message: "Logged out successfully" })
-  );
+  return res.status(200).json({ message: "Logged out successfully" });
 };
 
-const generateAndSendToken = (res: Response, userId: string): Response => {
+const generateAndSendToken = (res: Response, user: any): Response => {
   const JWT_SECRET = process.env.JWT_SECRET as string;
-  const payload = { user: { id: userId } };
+  const payload = { user: { id: user._id, role: user.role } };
 
   try {
-    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "5h" });
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
     res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 18000000,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
-    return res.json({ message: "User Logged in Successfully" });
+
+    return res.json({
+      message: "User logged in successfully",
+      token,
+      user: sanitizeUser(user),
+    });
   } catch (err) {
     console.error("JWT Sign Error:", err);
     return res.status(500).json({ message: "Token generation failed" });
@@ -166,21 +183,29 @@ const generateAndSendToken = (res: Response, userId: string): Response => {
 };
 
 export const editUser = async (req: Request, res: Response) => {
-  const { name, email, password, firebaseUID } = req.body;
+  const { name, companyName, headline, bio, avatarUrl, parsedSkills } = req.body;
   try {
     let user = await UserModel.findById(req.user.id);
     if (!user) {
-      return res.status(400).json({ message: "User not Found" });
+      return res.status(404).json({ message: "User not found" });
     }
 
-    user.name = name || user.name;
-    user.email = email || user.email;
+    if (name) user.name = name;
+    if (companyName !== undefined) user.companyName = companyName;
+    if (headline !== undefined) user.headline = headline;
+    if (bio !== undefined) user.bio = bio;
+    if (avatarUrl !== undefined) user.avatarUrl = avatarUrl;
+    if (parsedSkills && Array.isArray(parsedSkills)) user.parsedSkills = parsedSkills;
 
     await user.save();
 
-    res.status(200).json({ message: "User details updated successfully" });
+    return res.status(200).json({
+      message: "User profile updated successfully",
+      user: sanitizeUser(user),
+    });
   } catch (error) {
     console.error("Error updating user:", error);
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 };
+

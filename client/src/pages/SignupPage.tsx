@@ -1,206 +1,264 @@
-import { cn } from "@/utils/lib/utils";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Eye, EyeOff } from "lucide-react";
-import { signInWithPopup } from "firebase/auth";
-import { auth, googleProvider } from "@/utils/firebase/firebase";
-import { registerUser } from "@/api/user.api";
+import { Link, useNavigate } from "react-router-dom";
 import { useNotification } from "@/components/Notifications/NotificationContext";
-import { Notification } from "@/vite-env";
+import { useAuth } from "@/context/AuthContext";
+import { registerUser } from "@/api/user.api";
+import { UserRole } from "@/vite-env";
+import { 
+  Sparkles, 
+  Briefcase, 
+  GraduationCap, 
+  Eye, 
+  EyeOff, 
+  ArrowRight
+} from "lucide-react";
 
-export function SignupPage({
-  className,
-  ...props
-}: React.ComponentPropsWithoutRef<"div">) {
+
+export function SignupPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [role, setRole] = useState<UserRole>("candidate");
+  const [companyName, setCompanyName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [firebaseUid, setFirebaseUid] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const navigate = useNavigate();
   const { addNotification } = useNotification();
+  const { refreshUser } = useAuth();
 
-  const handleGoogleSignup = async () => {
-    try {
-      const result = await signInWithPopup(auth, googleProvider);
-      // console.log((result as any)._tokenResponse);
-      setName((result as any)._tokenResponse.displayName);
-      setEmail((result as any)._tokenResponse.email);
-      setFirebaseUid((result as any)._tokenResponse.user_id);
-      setPassword(`${Math.random() * 1000000}`);
-      const formData = {
-        name,
-        email,
-        password,
-        firebaseUid: firebaseUid || "",
-      };
-      const response = await registerUser(formData);
-      response;
-      // console.log("Response", response);
-      const newNotification: Notification = {
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !email.trim() || !password) {
+      addNotification({
         id: Date.now().toString(),
-        type: "success",
-        message: "User Registered Successfully",
-      };
-      addNotification(newNotification);
-      navigate("/login");
-    } catch (error) {
-      // console.error("Test", error);
-      const newNotification: Notification = {
-        id: Date.now().toString(),
-        type: "error",
-        message: `${(error as any).response.data.error}`,
-      };
-      addNotification(newNotification);
+        type: "warning",
+        message: "Please fill in all required fields",
+      });
+      return;
     }
-  };
 
-  const handleSignup = async () => {
-    try {
-      if (password !== confirmPassword) {
-        alert("Passwords do not match");
-        return;
-      }
-      const formData = {
-        name,
-        email,
-        password,
-        firebaseUid: firebaseUid || "",
-      };
-      await registerUser(formData);
-      const newNotification: Notification = {
-        id: Date.now().toString(),
-        type: "success",
-        message: "User Registered Successfully",
-      };
-      addNotification(newNotification);
-      navigate("/login");
-    } catch (error) {
-      // console.error("Test", (error as any).response.data);
-      const newNotification: Notification = {
+    if (password !== confirmPassword) {
+      addNotification({
         id: Date.now().toString(),
         type: "error",
-        message: `${(error as any).response.data.error}`,
-      };
-      addNotification(newNotification);
+        message: "Passwords do not match",
+      });
+      return;
+    }
+
+    if (role === "recruiter" && !companyName.trim()) {
+      addNotification({
+        id: Date.now().toString(),
+        type: "warning",
+        message: "Company name is required for recruiter accounts",
+      });
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const response = await registerUser({
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        password,
+        role,
+        companyName: role === "recruiter" ? companyName.trim() : undefined,
+      });
+
+      addNotification({
+        id: Date.now().toString(),
+        type: "success",
+        message: "Account registered successfully!",
+      });
+
+      await refreshUser();
+
+      if (response?.user?.role === "recruiter") {
+        navigate("/recruiter");
+      } else if (response?.user?.role === "admin") {
+        navigate("/admin");
+      } else {
+        navigate("/dashboard");
+      }
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error || error.response?.data?.message || "Registration failed";
+      addNotification({
+        id: Date.now().toString(),
+        type: "error",
+        message: errorMsg,
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="h-screen w-screen flex justify-center items-center">
-      <div
-        className={cn("flex flex-col gap-6 lg:w-80 max-w-6xl", className)}
-        {...props}
-      >
-        <Card className="bg-gray-200">
-          <CardHeader>
-            <CardTitle className="text-2xl">Sign Up</CardTitle>
-            <CardDescription>
-              Enter your details to create an account
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={(e) => e.preventDefault()}>
-              <div className="flex flex-col gap-6">
-                <div className="grid gap-2">
-                  <Label htmlFor="name">Name</Label>
-                  <Input
-                    id="name"
-                    type="text"
-                    placeholder="John Doe"
-                    required
-                    onChange={(e) => setName(e.target.value)}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="m@example.com"
-                    required
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="password">Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      required
-                      onChange={(e) => setPassword(e.target.value)}
-                    />
-                    <button
-                      type="button"
-                      className="absolute inset-y-0 right-3 flex items-center text-gray-500 hover:text-gray-700"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? (
-                        <Eye className="text-red-500" />
-                      ) : (
-                        <EyeOff />
-                      )}
-                    </button>
-                  </div>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="confirmPassword">Confirm Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="confirmPassword"
-                      type={showConfirmPassword ? "text" : "password"}
-                      required
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                    />
-                    <button
-                      type="button"
-                      className="absolute inset-y-0 right-3 flex items-center text-gray-500 hover:text-gray-700"
-                      onClick={() =>
-                        setShowConfirmPassword(!showConfirmPassword)
-                      }
-                    >
-                      {showConfirmPassword ? (
-                        <Eye className="text-red-500" />
-                      ) : (
-                        <EyeOff />
-                      )}
-                    </button>
-                  </div>
-                </div>
-                <Button onClick={handleSignup} className="w-full">
-                  Sign Up
-                </Button>
+    <div className="min-h-screen bg-[#0f0f11] flex items-center justify-center p-4 selection:bg-emerald-500 selection:text-black">
+      <div className="w-full max-w-md my-8">
+        {/* Logo & Brand Header */}
+        <div className="text-center mb-6">
+          <Link to="/" className="inline-flex items-center gap-2 mb-2 group">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-slate-950 flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:scale-105 transition-transform">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <span className="text-xl font-bold text-white tracking-tight">MockMate AI</span>
+          </Link>
+          <h2 className="text-2xl font-bold text-white tracking-tight mt-2">Create your account</h2>
+          <p className="text-xs text-slate-400 mt-1">
+            Choose your role to get started with intelligent AI interviewing
+          </p>
+        </div>
+
+        {/* Form Container */}
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-6 md:p-8 backdrop-blur-xl shadow-2xl">
+          {/* Role Switcher */}
+          <div className="grid grid-cols-2 gap-2 p-1 bg-slate-900/90 rounded-xl border border-slate-800 mb-6">
+            <button
+              type="button"
+              onClick={() => setRole("candidate")}
+              className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                role === "candidate"
+                  ? "bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <GraduationCap className="w-3.5 h-3.5" />
+              Candidate
+            </button>
+            <button
+              type="button"
+              onClick={() => setRole("recruiter")}
+              className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                role === "recruiter"
+                  ? "bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Briefcase className="w-3.5 h-3.5" />
+              Recruiter
+            </button>
+          </div>
+
+          <form onSubmit={handleSignup} className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                Full Name
+              </label>
+              <input
+                type="text"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={role === "recruiter" ? "Sarah Jenkins" : "Alex Rivera"}
+                className="w-full px-3.5 py-2.5 bg-slate-900/90 border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                Email Address
+              </label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="name@example.com"
+                className="w-full px-3.5 py-2.5 bg-slate-900/90 border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
+              />
+            </div>
+
+            {role === "recruiter" && (
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                  Company / Organization Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  placeholder="e.g. Acme Corp or TechTalent"
+                  className="w-full px-3.5 py-2.5 bg-slate-900/90 border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
+                />
               </div>
-              <Button
-                onClick={handleGoogleSignup}
-                variant="outline"
-                className="w-full mt-2"
-              >
-                Continue with Google
-              </Button>
-              <div className="mt-4 text-center text-sm">
-                Already have an account?{" "}
-                <a href="/login" className="underline underline-offset-4">
-                  Login
-                </a>
+            )}
+
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full pl-3.5 pr-10 py-2.5 bg-slate-900/90 border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
-            </form>
-          </CardContent>
-        </Card>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                Confirm Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full pl-3.5 pr-10 py-2.5 bg-slate-900/90 border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                >
+                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full mt-2 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-semibold text-sm transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50 cursor-pointer"
+            >
+              {isSubmitting ? (
+                "Creating Account..."
+              ) : (
+                <>
+                  Register as {role === "recruiter" ? "Recruiter" : "Candidate"}
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </form>
+
+          <div className="mt-6 text-center text-xs text-slate-400">
+            Already have an account?{" "}
+            <Link to="/login" className="text-emerald-400 hover:text-emerald-300 font-medium underline underline-offset-4">
+              Sign In
+            </Link>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
+
+export default SignupPage;

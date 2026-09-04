@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  # Database Layer: MongoDB
+  mongodb:
+    image: mongo:7.0
+    container_name: mockmate-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - mockmate-net
+
+  # Cache Layer: Redis
+  redis:
+    image: redis:7-alpine
+    container_name: mockmate-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - mockmate-net
+
+  # Backend Core: Node.js + Express + TypeScript
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: mockmate-server
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - NODE_ENV=production
+      - MONGO_URI=mongodb://mongodb:27017/mockmate
+      - JWT_SECRET=mockmate_enterprise_super_secret_jwt_key_2026
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - FRONTEND_URL=http://localhost
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - mockmate-net
+
+  # Frontend UI: React + Vite + Nginx
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: mockmate-client
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+    networks:
+      - mockmate-net
+
+volumes:
+  mongo_data:
+  redis_data:
+
+networks:
+  mockmate-net:
+    driver: bridge

@@ -3,9 +3,10 @@ import { raw, Request, Response } from "express";
 import dotenv from "dotenv";
 import { Question } from "../types/express";
 import MockInterviewModel, { MockInterview } from "../models/mockinterview.model";
-import exp from "constants";
+import { generateAdaptiveFollowUp, generateDomainQuestions } from "../services/adaptiveInterview.service";
 
 dotenv.config();
+
 
 function extractAndParseJSONQuestion(responseText: string) {
   try {
@@ -554,3 +555,50 @@ export const GenerateReview = async (req: Request, res: Response) => {
     return res.status(500).json({ error: "Internal server error" });
   }
 };
+
+export const handleAdaptiveFollowUp = async (req: Request, res: Response) => {
+  try {
+    const { currentQuestion, candidateAnswer, jobRole, targetCompany, companyMode, experienceLevel, skills } = req.body;
+
+    if (!currentQuestion) {
+      return res.status(400).json({ message: "currentQuestion is required" });
+    }
+
+    const result = await generateAdaptiveFollowUp(
+      currentQuestion,
+      candidateAnswer || "",
+      {
+        jobRole: jobRole || "Software Engineer",
+        targetCompany: targetCompany || "Tech Enterprise",
+        companyMode: companyMode || "General",
+        experienceLevel: experienceLevel || "Junior",
+        skills: Array.isArray(skills) ? skills : [],
+      }
+    );
+
+    return res.status(200).json(result);
+  } catch (error: any) {
+    console.error("Error in adaptive follow-up handler:", error);
+    return res.status(500).json({ message: "Failed to generate follow-up" });
+  }
+};
+
+export const handleDomainQuestions = async (req: Request, res: Response) => {
+  try {
+    const { domain, companyMode, count, jobRole, experienceLevel } = req.body;
+
+    const questions = await generateDomainQuestions(
+      domain || "GENERAL",
+      companyMode || "General",
+      count || 5,
+      jobRole || "Software Engineer",
+      experienceLevel || "Junior"
+    );
+
+    return res.status(200).json({ questions });
+  } catch (error: any) {
+    console.error("Error in domain questions handler:", error);
+    return res.status(500).json({ message: "Failed to generate domain questions" });
+  }
+};
+
