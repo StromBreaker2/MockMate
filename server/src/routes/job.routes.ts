@@ -18,6 +18,12 @@ router.get(
   requireRole("recruiter", "admin"),
   asyncHandler(getRecruiterJobs)
 );
+router.get(
+  "/recruiter/my-postings",
+  asyncHandler(authMiddleware),
+  requireRole("recruiter", "admin"),
+  asyncHandler(getRecruiterJobs)
+);
 router.get("/:id", asyncHandler(getJobById));
 router.post(
   "/",

@@ -60,12 +60,12 @@ const mockInterviewSchema = new Schema<MockInterview>(
         },
         answer: {
           type: String,
-          required: true,
+          required: false,
           default: "",
         },
         review: {
           type: String,
-          required: true,
+          required: false,
           default: "",
         },
       },
@@ -79,12 +79,12 @@ const mockInterviewSchema = new Schema<MockInterview>(
         },
         answer: {
           type: String,
-          required: true,
+          required: false,
           default: "",
         },
         review: {
           type: String,
-          required: true,
+          required: false,
           default: "",
         },
       },
@@ -97,12 +97,12 @@ const mockInterviewSchema = new Schema<MockInterview>(
         },
         answer: {
           type: String,
-          required: true,
+          required: false,
           default: "",
         },
         review: {
           type: String,
-          required: true,
+          required: false,
           default: "",
         },
       },

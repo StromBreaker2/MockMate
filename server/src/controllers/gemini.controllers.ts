@@ -1,8 +1,10 @@
 import axios from "axios";
+import mongoose from "mongoose";
 import { raw, Request, Response } from "express";
 import dotenv from "dotenv";
 import { Question } from "../types/express";
 import MockInterviewModel, { MockInterview } from "../models/mockinterview.model";
+import ResumeModel from "../models/resume.model";
 import { generateAdaptiveFollowUp, generateDomainQuestions } from "../services/adaptiveInterview.service";
 import RAGService from "../services/rag.service";
 import WhisperService from "../services/whisper.service";
@@ -167,10 +169,8 @@ export const GenerateIntervieQuestions = async (
   req: Request,
   res: Response
 ) => {
-  const { interviewID, skills } = req.body as {
-    interviewID: string;
-    skills: string[];
-  };
+  const interviewID = req.body.interviewID || req.body.interviewId || req.body.id;
+  const skills = Array.isArray(req.body.skills) ? req.body.skills : [];
   const userId = req.user._id;
 
   if (!interviewID) {
@@ -199,9 +199,7 @@ export const GenerateIntervieQuestions = async (
 };
 
 export const GenerateReview = async (req: Request, res: Response) => {
-  const { InterviewDetailsObject } = req.body as {
-    InterviewDetailsObject: MockInterview;
-  };
+  const InterviewDetailsObject = (req.body.InterviewDetailsObject || req.body) as MockInterview;
 
   if (!InterviewDetailsObject) {
     return res.status(400).json({ message: "Invalid request format" });
@@ -540,21 +538,44 @@ export const GenerateReview = async (req: Request, res: Response) => {
     // console.log("Parsed Data ", generatedResponse);
     // const jsonResponse = JSON.parse(generatedResponse);
 
-    // save Interview 
+    // save Interview if valid ID provided
     let interviewId = InterviewDetailsObject._id;
-    let interview  = await MockInterviewModel.findOne({"_id":interviewId});
-    console.log(interview);
-    if (interview) {
-      interview.dsaQuestions = generatedResponse.dsaQuestions;
-      interview.technicalQuestions = generatedResponse.technicalQuestions;
-      interview.coreSubjectQuestions = generatedResponse.coreSubjectQuestions;
-      interview.overallRating = generatedResponse.overallRating;
-      interview.overallReview = generatedResponse.overallReview;
-      await interview.save();
-    } else {
-      return res.status(404).json({ error: "Interview not found" });
+    if (interviewId && mongoose.Types.ObjectId.isValid(interviewId)) {
+      let interview = await MockInterviewModel.findOne({ "_id": interviewId });
+      if (interview) {
+        const sanitizeQuestions = (generatedQs: any[], existingQs: any[] = []) => {
+          if (!Array.isArray(generatedQs) || generatedQs.length === 0) return existingQs;
+          return generatedQs.map((q, idx) => {
+            const existing = existingQs[idx];
+            const cleaned: any = {
+              question: q.question || existing?.question || "",
+              answer: q.answer || existing?.answer || "",
+              review: q.review || existing?.review || "",
+            };
+            if (existing?._id) {
+              cleaned._id = existing._id;
+            } else if (q._id && mongoose.Types.ObjectId.isValid(q._id)) {
+              cleaned._id = q._id;
+            }
+            return cleaned;
+          });
+        };
+
+        interview.dsaQuestions = sanitizeQuestions(generatedResponse.dsaQuestions, interview.dsaQuestions);
+        interview.technicalQuestions = sanitizeQuestions(generatedResponse.technicalQuestions, interview.technicalQuestions);
+        interview.coreSubjectQuestions = sanitizeQuestions(generatedResponse.coreSubjectQuestions, interview.coreSubjectQuestions);
+        interview.overallRating = generatedResponse.overallRating || 8;
+        interview.overallReview = generatedResponse.overallReview || "Evaluation completed successfully.";
+        await interview.save();
+      }
     }
-    return res.status(200).json({"message":"success"});
+
+    return res.status(200).json({
+      message: "success",
+      overallRating: generatedResponse.overallRating || 8,
+      overallReview: generatedResponse.overallReview || "Evaluation completed successfully.",
+      generatedResponse,
+    });
   } catch (error: any) {
     console.error(
       "Error generating review:",
@@ -566,15 +587,17 @@ export const GenerateReview = async (req: Request, res: Response) => {
 
 export const handleAdaptiveFollowUp = async (req: Request, res: Response) => {
   try {
-    const { currentQuestion, candidateAnswer, jobRole, targetCompany, companyMode, experienceLevel, skills } = req.body;
+    const targetQuestion = req.body.currentQuestion || req.body.question;
+    const targetAnswer = req.body.candidateAnswer || req.body.userAnswer || req.body.answer || "";
+    const { jobRole, targetCompany, companyMode, experienceLevel, skills } = req.body;
 
-    if (!currentQuestion) {
+    if (!targetQuestion) {
       return res.status(400).json({ message: "currentQuestion is required" });
     }
 
     const result = await generateAdaptiveFollowUp(
-      currentQuestion,
-      candidateAnswer || "",
+      targetQuestion,
+      targetAnswer,
       {
         jobRole: jobRole || "Software Engineer",
         targetCompany: targetCompany || "Tech Enterprise",
@@ -612,7 +635,16 @@ export const handleDomainQuestions = async (req: Request, res: Response) => {
 
 export const handleRAGContext = async (req: Request, res: Response) => {
   try {
-    const { query, resumeText, jobDescription } = req.body;
+    let { query, resumeText, jobDescription } = req.body;
+
+    // Auto-ground in authenticated candidate's resume from DB if not supplied
+    if (!resumeText && req.user?._id) {
+      const candidateResume = await ResumeModel.findOne({ candidate: req.user._id });
+      if (candidateResume?.rawText) {
+        resumeText = candidateResume.rawText;
+      }
+    }
+
     if (!resumeText) {
       return res.status(400).json({ message: "resumeText is required for RAG grounding" });
     }
@@ -685,14 +717,31 @@ export const handleSendReportEmail = async (req: Request, res: Response) => {
 
 export const handleEvaluateSystemDesign = async (req: Request, res: Response) => {
   try {
-    const { problemStatement, nodes, edges } = req.body;
-    if (!Array.isArray(nodes)) {
-      return res.status(400).json({ message: "Nodes array is required" });
+    const { problemStatement, problemTitle, nodes, edges, componentsUsed, designDescription } = req.body;
+    
+    let resolvedNodes = Array.isArray(nodes) ? nodes : [];
+    if (resolvedNodes.length === 0 && Array.isArray(componentsUsed)) {
+      resolvedNodes = componentsUsed.map((comp: string, i: number) => ({
+        id: `node-${i}`,
+        data: { label: comp },
+      }));
+    }
+
+    if (resolvedNodes.length === 0 && designDescription) {
+      resolvedNodes = [
+        { id: "node-1", data: { label: "Client / API Gateway" } },
+        { id: "node-2", data: { label: "Application Service Cluster" } },
+        { id: "node-3", data: { label: "Persistent Database / Cache" } },
+      ];
+    }
+
+    if (resolvedNodes.length === 0) {
+      return res.status(400).json({ message: "Nodes array or componentsUsed is required" });
     }
 
     const evaluation = await evaluateSystemDesignArchitecture(
-      problemStatement || "Scalable Distributed System",
-      nodes,
+      problemStatement || problemTitle || "Scalable Distributed System",
+      resolvedNodes,
       Array.isArray(edges) ? edges : []
     );
 

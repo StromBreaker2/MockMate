@@ -8,8 +8,10 @@ export const healthCheck = async (req: Request, res: Response) => {
 
         res.status(200).json({
             success: true,
+            status: "OK",
             message: "Server is running",
             database: isDBConnected,
+            timestamp: new Date().toISOString(),
         });
     } catch (error) {
         res.status(500).json({
