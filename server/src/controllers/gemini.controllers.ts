@@ -108,8 +108,9 @@ const generateQuestions = async (
   Ensure the questions are relevant and aligned with the provided technologies. Use a balanced mix of difficulty levels appropriate for the experience level. Provide example inputs and outputs for practical tasks when needed. Important: Return only the JSON format in your response with no extra text or explanations.`;
 
   try {
+    const model = process.env.GEMINI_MODEL || "gemini-flash-latest";
     const response = await axios.post(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
       {
         contents: [{ parts: [{ text: prompt }] }],
       },
@@ -512,8 +513,9 @@ export const GenerateReview = async (req: Request, res: Response) => {
   // console.log("Review Prompt", reviewPrompt);
 
   try {
+    const model = process.env.GEMINI_MODEL || "gemini-flash-latest";
     const response = await axios.post(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
       {
         contents: [{ parts: [{ text: reviewPrompt }] }],
       },

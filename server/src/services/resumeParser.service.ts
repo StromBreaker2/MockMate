@@ -114,8 +114,9 @@ Output JSON Schema:
 Important: Return ONLY pure JSON. No explanations, no markdown formatting.`;
 
   try {
+    const model = process.env.GEMINI_MODEL || "gemini-flash-latest";
     const response = await axios.post(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
       {
         contents: [{ parts: [{ text: prompt }] }],
       },
@@ -125,6 +126,7 @@ Important: Return ONLY pure JSON. No explanations, no markdown formatting.`;
         timeout: 15000,
       }
     );
+
 
     const candidateText = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!candidateText) {

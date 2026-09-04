@@ -97,8 +97,9 @@ Return ONLY pure JSON (no markdown fences):
 }`;
 
   try {
+    const model = process.env.GEMINI_MODEL || "gemini-flash-latest";
     const response = await axios.post(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
       {
         contents: [{ parts: [{ text: prompt }] }],
       },
@@ -188,8 +189,9 @@ Return ONLY pure JSON array matching this format (no markdown):
 ]`;
 
   try {
+    const model = process.env.GEMINI_MODEL || "gemini-flash-latest";
     const response = await axios.post(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
       {
         contents: [{ parts: [{ text: prompt }] }],
       },
