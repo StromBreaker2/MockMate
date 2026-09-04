@@ -35,12 +35,46 @@ export interface ParsedResumeData {
  */
 export const extractTextFromPdf = async (buffer: Buffer): Promise<string> => {
   try {
-    const data = await pdfParse(buffer);
-    return data.text || "";
+    const parseFn = typeof pdfParse === "function" ? pdfParse : (pdfParse?.default || pdfParse);
+    if (typeof parseFn === "function") {
+      const data = await parseFn(buffer);
+      if (data && data.text && data.text.trim()) {
+        return data.text;
+      }
+    }
   } catch (error) {
-    console.error("Error extracting text from PDF:", error);
-    throw new Error("Failed to parse PDF document");
+    console.warn("pdf-parse extraction warning, attempting fallback text extraction:", error);
   }
+
+  // Fallback: extract text directly from PDF buffer (works even if PDF has minor xref issues or non-standard headers)
+  try {
+    const rawString = buffer.toString("binary");
+    const textMatches = rawString.match(/\(([^)]+)\)\s*Tj/g);
+    if (textMatches && textMatches.length > 0) {
+      const extracted = textMatches
+        .map((m) => m.replace(/^\(/, "").replace(/\)\s*Tj$/, ""))
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (extracted.length > 30) {
+        return extracted;
+      }
+    }
+
+    // Secondary fallback: printable ASCII extraction
+    const asciiText = buffer
+      .toString("utf-8")
+      .replace(/[^\x20-\x7E\n\r\t]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (asciiText.length > 50) {
+      return asciiText;
+    }
+  } catch (fallbackErr) {
+    console.error("Fallback text extraction error:", fallbackErr);
+  }
+
+  throw new Error("Could not extract readable text from this PDF. Please ensure the document is not an image-only scan or password-protected.");
 };
 
 /**
