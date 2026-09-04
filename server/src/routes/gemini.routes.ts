@@ -3,10 +3,20 @@ import {
   GenerateReview,
   handleAdaptiveFollowUp,
   handleDomainQuestions,
+  handleRAGContext,
+  handleWhisperTranscribe,
+  handleSendReportEmail,
 } from "../controllers/gemini.controllers";
 import authMiddleware from "../middlewares/auth.middleware";
 import { asyncHandler } from "../utils/asyncHandler";
 import { Router } from "express";
+import multer from "multer";
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25MB max audio
+});
+
 const router = Router();
 
 router.post(
@@ -33,5 +43,23 @@ router.post(
   asyncHandler(handleDomainQuestions)
 );
 
-export default router;
+router.post(
+  "/rag-context",
+  asyncHandler(authMiddleware),
+  asyncHandler(handleRAGContext)
+);
 
+router.post(
+  "/whisper-transcribe",
+  asyncHandler(authMiddleware),
+  upload.single("audio"),
+  asyncHandler(handleWhisperTranscribe)
+);
+
+router.post(
+  "/send-email-report",
+  asyncHandler(authMiddleware),
+  asyncHandler(handleSendReportEmail)
+);
+
+export default router;

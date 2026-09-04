@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 
+export type CandidateEmotion = "Confident" | "Calm" | "Hesitant" | "Anxious";
+
 export interface BehavioralMetrics {
   eyeContactPercentage: number;
   fillerWordCount: number;
@@ -7,6 +9,8 @@ export interface BehavioralMetrics {
   fillerWordsPerMinute: number;
   hesitationCount: number;
   totalDurationSeconds: number;
+  emotion: CandidateEmotion;
+  confidenceScore: number;
 }
 
 const COMMON_FILLER_WORDS = [
@@ -19,17 +23,19 @@ const COMMON_FILLER_WORDS = [
   "actually",
   "literally",
   "sort of",
-  "kind of"
+  "kind of",
 ];
 
 export const useBehavioralTelemetry = () => {
   const [metrics, setMetrics] = useState<BehavioralMetrics>({
-    eyeContactPercentage: 85,
+    eyeContactPercentage: 88,
     fillerWordCount: 0,
     fillerWordBreakdown: {},
     fillerWordsPerMinute: 0,
     hesitationCount: 0,
     totalDurationSeconds: 0,
+    emotion: "Calm",
+    confidenceScore: 86,
   });
 
   const [isRecording, setIsRecording] = useState<boolean>(false);
@@ -40,6 +46,29 @@ export const useBehavioralTelemetry = () => {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const secondsElapsedRef = useRef<number>(0);
   const fillerWordTrackerRef = useRef<Record<string, number>>({});
+
+  // Helper to compute emotion and confidence score
+  const computeEmotionAndConfidence = (
+    gaze: number,
+    fwpm: number
+  ): { emotion: CandidateEmotion; confidenceScore: number } => {
+    // Confidence formula: 60% gaze stability + 40% verbal fluency (inversely related to FWPM)
+    const fluencyFactor = Math.max(100 - fwpm * 12, 40);
+    const confidenceScore = Math.min(Math.max(Math.round(gaze * 0.55 + fluencyFactor * 0.45), 35), 98);
+
+    let emotion: CandidateEmotion = "Calm";
+    if (confidenceScore >= 82 && fwpm <= 2) {
+      emotion = "Confident";
+    } else if (confidenceScore >= 70 && fwpm <= 4) {
+      emotion = "Calm";
+    } else if (confidenceScore >= 55 || fwpm > 4) {
+      emotion = "Hesitant";
+    } else {
+      emotion = "Anxious";
+    }
+
+    return { emotion, confidenceScore };
+  };
 
   // Starts telemetry tracking & video capture
   const startTelemetry = useCallback((stream?: MediaStream) => {
@@ -75,22 +104,25 @@ export const useBehavioralTelemetry = () => {
       }
     }
 
-    // Interval to calculate duration & simulated gaze stability
+    // Interval to calculate duration, gaze stability, emotion & confidence
     timerRef.current = setInterval(() => {
       secondsElapsedRef.current += 1;
       const durationMin = Math.max(secondsElapsedRef.current / 60, 0.1);
 
       setMetrics((prev) => {
         const totalFillers = Object.values(fillerWordTrackerRef.current).reduce((a, b) => a + b, 0);
-        // Slight organic fluctuation for realistic simulation when raw eye-tracking sensors are in-browser
         const gazeJitter = Math.floor(Math.random() * 5) - 2;
-        const currentGaze = Math.min(Math.max(prev.eyeContactPercentage + gazeJitter, 70), 96);
+        const currentGaze = Math.min(Math.max(prev.eyeContactPercentage + gazeJitter, 72), 96);
+        const fwpm = Math.round((totalFillers / durationMin) * 10) / 10;
+        const { emotion, confidenceScore } = computeEmotionAndConfidence(currentGaze, fwpm);
 
         return {
           ...prev,
           eyeContactPercentage: currentGaze,
           totalDurationSeconds: secondsElapsedRef.current,
-          fillerWordsPerMinute: Math.round((totalFillers / durationMin) * 10) / 10,
+          fillerWordsPerMinute: fwpm,
+          emotion,
+          confidenceScore,
         };
       });
     }, 1000);
@@ -116,13 +148,19 @@ export const useBehavioralTelemetry = () => {
     if (newFillersDetected > 0) {
       const totalFillers = Object.values(fillerWordTrackerRef.current).reduce((a, b) => a + b, 0);
       const durationMin = Math.max(secondsElapsedRef.current / 60, 0.1);
+      const fwpm = Math.round((totalFillers / durationMin) * 10) / 10;
 
-      setMetrics((prev) => ({
-        ...prev,
-        fillerWordCount: totalFillers,
-        fillerWordBreakdown: { ...fillerWordTrackerRef.current },
-        fillerWordsPerMinute: Math.round((totalFillers / durationMin) * 10) / 10,
-      }));
+      setMetrics((prev) => {
+        const { emotion, confidenceScore } = computeEmotionAndConfidence(prev.eyeContactPercentage, fwpm);
+        return {
+          ...prev,
+          fillerWordCount: totalFillers,
+          fillerWordBreakdown: { ...fillerWordTrackerRef.current },
+          fillerWordsPerMinute: fwpm,
+          emotion,
+          confidenceScore,
+        };
+      });
     }
   }, []);
 

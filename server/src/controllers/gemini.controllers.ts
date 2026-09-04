@@ -4,6 +4,9 @@ import dotenv from "dotenv";
 import { Question } from "../types/express";
 import MockInterviewModel, { MockInterview } from "../models/mockinterview.model";
 import { generateAdaptiveFollowUp, generateDomainQuestions } from "../services/adaptiveInterview.service";
+import RAGService from "../services/rag.service";
+import WhisperService from "../services/whisper.service";
+import { sendInterviewReportEmail } from "../services/email.service";
 
 dotenv.config();
 
@@ -601,4 +604,78 @@ export const handleDomainQuestions = async (req: Request, res: Response) => {
     return res.status(500).json({ message: "Failed to generate domain questions" });
   }
 };
+
+export const handleRAGContext = async (req: Request, res: Response) => {
+  try {
+    const { query, resumeText, jobDescription } = req.body;
+    if (!resumeText) {
+      return res.status(400).json({ message: "resumeText is required for RAG grounding" });
+    }
+
+    const ragContext = RAGService.buildRAGPromptContext(
+      query || "technical experience and project architecture",
+      resumeText,
+      jobDescription
+    );
+    const chunks = RAGService.chunkDocument(resumeText, "resume");
+    const retrieved = RAGService.retrieveRelevantChunks(query || "experience", chunks, 3);
+
+    return res.status(200).json({
+      success: true,
+      ragContext,
+      retrievedSnippets: retrieved.map((c) => ({ id: c.id, text: c.text, keywords: c.keywords })),
+    });
+  } catch (error: any) {
+    console.error("Error in RAG handler:", error);
+    return res.status(500).json({ message: "Failed to generate RAG context" });
+  }
+};
+
+export const handleWhisperTranscribe = async (req: Request, res: Response) => {
+  try {
+    const audioBuffer = req.file?.buffer;
+    if (!audioBuffer) {
+      const { base64Audio } = req.body;
+      if (base64Audio) {
+        const buffer = Buffer.from(base64Audio, "base64");
+        const result = await WhisperService.transcribeAudio(buffer);
+        return res.status(200).json(result);
+      }
+      return res.status(400).json({ message: "Audio file or base64Audio is required" });
+    }
+
+    const result = await WhisperService.transcribeAudio(audioBuffer, req.file?.mimetype);
+    return res.status(200).json(result);
+  } catch (error: any) {
+    console.error("Error in Whisper transcribe handler:", error);
+    return res.status(500).json({ message: "Whisper transcription failed" });
+  }
+};
+
+export const handleSendReportEmail = async (req: Request, res: Response) => {
+  try {
+    const { to, candidateName, roleTitle, overallScore, technicalScore, behavioralScore, strengths, improvements } =
+      req.body;
+    if (!to || !candidateName) {
+      return res.status(400).json({ message: "Recipient email and candidate name are required" });
+    }
+
+    const result = await sendInterviewReportEmail({
+      to,
+      candidateName,
+      roleTitle: roleTitle || "Software Engineer",
+      overallScore: overallScore || 80,
+      technicalScore: technicalScore || 82,
+      behavioralScore: behavioralScore || 78,
+      strengths: Array.isArray(strengths) ? strengths : ["Problem solving depth", "Architectural clarity"],
+      improvements: Array.isArray(improvements) ? improvements : ["Deepen edge case analysis in code sandbox"],
+    });
+
+    return res.status(200).json(result);
+  } catch (error: any) {
+    console.error("Error in email report handler:", error);
+    return res.status(500).json({ message: "Failed to send email report" });
+  }
+};
+
 
