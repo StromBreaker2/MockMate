@@ -14,6 +14,8 @@ import RecruiterDashboard from "./pages/recruiter/RecruiterDashboard";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import ResumeATSPage from "./pages/candidate/ResumeATSPage";
 import RoadmapLeaderboardPage from "./pages/candidate/RoadmapLeaderboardPage";
+import SystemDesignPage from "./pages/candidate/SystemDesignPage";
+import SalaryNegotiationPage from "./pages/candidate/SalaryNegotiationPage";
 
 function App() {
 
@@ -51,10 +53,26 @@ function App() {
               </ProtectedRoute>
             }
           />
-
+          <Route
+            path="/system-design"
+            element={
+              <ProtectedRoute allowedRoles={["candidate", "admin"]}>
+                <SystemDesignPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/salary-negotiation"
+            element={
+              <ProtectedRoute allowedRoles={["candidate", "admin"]}>
+                <SalaryNegotiationPage />
+              </ProtectedRoute>
+            }
+          />
 
           <Route
             path="/interviewinterface/:id"
+
             element={
               <ProtectedRoute allowedRoles={["candidate", "admin"]}>
                 <InterviewInterfacePage />

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import axios from "axios";
 import Navbar from "@/components/Navbar";
 import { useNotification } from "@/components/Notifications/NotificationContext";
 import { 
@@ -21,7 +22,8 @@ import {
   Briefcase, 
   ArrowRight,
   RefreshCw,
-  Award
+  Award,
+  Zap
 } from "lucide-react";
 
 export const ResumeATSPage: React.FC = () => {
@@ -39,6 +41,8 @@ export const ResumeATSPage: React.FC = () => {
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [isEvaluating, setIsEvaluating] = useState<boolean>(false);
   const [evaluationResult, setEvaluationResult] = useState<ATSEvaluationResponse["evaluation"] | null>(null);
+  const [isOptimizing, setIsOptimizing] = useState<boolean>(false);
+  const [optimizationResult, setOptimizationResult] = useState<any | null>(null);
 
   useEffect(() => {
     fetchExistingResume();
@@ -205,6 +209,47 @@ export const ResumeATSPage: React.FC = () => {
       navigate("/dashboard");
     }
   };
+
+  const handleOptimizeResume = async () => {
+    if (!resume) {
+      addNotification({
+        id: Date.now().toString(),
+        type: "error",
+        message: "Please upload a resume first!",
+      });
+      return;
+    }
+
+    setIsOptimizing(true);
+    try {
+      const selectedJob = jobs.find((j) => j._id === selectedJobId);
+      const res = await axios.post(
+        `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api"}/ai/optimize-resume`,
+        {
+          rawResumeText: resume.rawText || JSON.stringify(resume),
+          targetRole: selectedJob?.title || customJobTitle || "Software Engineer",
+          jobDescription: selectedJob?.description || customJobDesc,
+        },
+        { withCredentials: true }
+      );
+      setOptimizationResult(res.data);
+      addNotification({
+        id: Date.now().toString(),
+        type: "success",
+        message: "Resume successfully rewritten using Google XYZ formula!",
+      });
+    } catch (err) {
+      console.error("Failed to optimize resume", err);
+      addNotification({
+        id: Date.now().toString(),
+        type: "error",
+        message: "Failed to optimize resume",
+      });
+    } finally {
+      setIsOptimizing(false);
+    }
+  };
+
 
   return (
     <div className="min-h-screen bg-[#0f0f11] text-slate-100">
@@ -507,18 +552,87 @@ export const ResumeATSPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Action CTA: Launch Tailored Interview */}
-                <div className="pt-2">
+                {/* Action CTA: Launch Tailored Interview & Google XYZ Optimizer */}
+                <div className="pt-2 flex flex-col sm:flex-row gap-3">
                   <button
                     onClick={handleStartTailoredInterview}
-                    className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-bold text-xs tracking-wide uppercase transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer"
+                    className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-bold text-xs tracking-wide uppercase transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    Start Tailored Mock Interview for this Role
+                    Start Mock Interview
                     <ArrowRight className="w-4 h-4" />
                   </button>
+                  <button
+                    onClick={handleOptimizeResume}
+                    disabled={isOptimizing}
+                    className="flex-1 py-3 px-4 rounded-xl border border-indigo-500/40 bg-indigo-950/40 hover:bg-indigo-900/60 text-indigo-300 font-bold text-xs tracking-wide uppercase transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    <Zap className="w-4 h-4 text-indigo-400" />
+                    {isOptimizing ? "Optimizing with XYZ..." : "Rewrite Resume (Google XYZ)"}
+                  </button>
                 </div>
+
+                {/* Google XYZ Optimized Results Card */}
+                {optimizationResult && (
+                  <div className="mt-6 rounded-2xl border border-indigo-500/40 bg-indigo-950/20 p-5 shadow-2xl backdrop-blur-md animate-in fade-in duration-300">
+                    <div className="flex items-center justify-between border-b border-indigo-500/20 pb-3 mb-4">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-indigo-400" />
+                        <h3 className="text-sm font-bold text-white">
+                          AI Optimized Experience (Google XYZ Formula)
+                        </h3>
+                      </div>
+                      <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                        {optimizationResult.atsImprovementScore}% ATS Ready
+                      </span>
+                    </div>
+
+                    <div className="mb-4">
+                      <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                        Executive Summary
+                      </h4>
+                      <p className="text-xs text-slate-200 leading-relaxed bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                        {optimizationResult.optimizedSummary}
+                      </p>
+                    </div>
+
+                    <div>
+                      <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                        Impact-Quantified Experience Bullets
+                      </h4>
+                      <div className="space-y-3">
+                        {optimizationResult.optimizedBulletPoints.map((bp: any, i: number) => (
+                          <div
+                            key={i}
+                            className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1.5"
+                          >
+                            <div className="text-[11px] text-slate-500 line-through">
+                              Original: {bp.original}
+                            </div>
+                            <div className="text-xs font-medium text-emerald-300">
+                              ✔ {bp.rewritten}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 pt-1">
+                              <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                Metric: {bp.impactMetric}
+                              </span>
+                              {bp.technologiesUsed?.map((t: string) => (
+                                <span
+                                  key={t}
+                                  className="px-1.5 py-0.5 rounded text-[9px] bg-slate-800 text-slate-400 border border-slate-700"
+                                >
+                                  {t}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
+
           </div>
         </div>
       </main>

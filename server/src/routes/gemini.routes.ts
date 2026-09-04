@@ -6,6 +6,9 @@ import {
   handleRAGContext,
   handleWhisperTranscribe,
   handleSendReportEmail,
+  handleEvaluateSystemDesign,
+  handleOptimizeResume,
+  handleSalaryNegotiation,
 } from "../controllers/gemini.controllers";
 import authMiddleware from "../middlewares/auth.middleware";
 import { asyncHandler } from "../utils/asyncHandler";
@@ -60,6 +63,24 @@ router.post(
   "/send-email-report",
   asyncHandler(authMiddleware),
   asyncHandler(handleSendReportEmail)
+);
+
+router.post(
+  "/evaluate-system-design",
+  asyncHandler(authMiddleware),
+  asyncHandler(handleEvaluateSystemDesign)
+);
+
+router.post(
+  "/optimize-resume",
+  asyncHandler(authMiddleware),
+  asyncHandler(handleOptimizeResume)
+);
+
+router.post(
+  "/salary-negotiate",
+  asyncHandler(authMiddleware),
+  asyncHandler(handleSalaryNegotiation)
 );
 
 export default router;

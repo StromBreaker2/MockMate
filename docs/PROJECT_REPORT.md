@@ -60,7 +60,20 @@ The visual focus metric is computed over time samples:
 
 $$\text{Eye Contact \%} = \frac{\int_{0}^{T} \mathbb{I}(\theta_{\text{gaze}}(t) \le \theta_{\text{threshold}}) \, dt}{T} \times 100$$
 
+#### 2.4 Proctoring Integrity Trust Score
+Interview security and anti-cheating compliance are calculated continuously:
+
+$$\text{Integrity Score} = \max\left(0, \, 100 - 15 \cdot N_{\text{tab}} - 10 \cdot N_{\text{blur}} - 8 \cdot N_{\text{paste}}\right)$$
+
+Where $N_{\text{tab}}$ is the number of external tab switches, $N_{\text{blur}}$ is window defocus events, and $N_{\text{paste}}$ is suspicious code paste anomalies. Candidates with $\text{Integrity Score} < 75\%$ are automatically flagged for recruiter manual audit.
+
+#### 2.5 System Design Scalability & Resilience Index
+Distributed architecture diagrams are evaluated against fault tolerance heuristics and graph traversal:
+
+$$S_{\text{arch}} = w_1 \cdot \mathbb{I}(\text{LoadBalancer}) + w_2 \cdot \mathbb{I}(\text{Cache}) + w_3 \cdot \mathbb{I}(\text{Queue}) + w_4 \cdot \mathbb{I}(\text{Replicas}) - \sum_{k} \text{Penalty}(\text{SPOF}_k)$$
+
 ---
+
 
 ### 3. Database Schema Specifications
 

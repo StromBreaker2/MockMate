@@ -18,6 +18,8 @@ import {
   Power,
   Video,
   VideoOff,
+  ShieldCheck,
+  AlertTriangle,
 } from "lucide-react";
 import { Timer } from "./InterviewInterface/Timer";
 import { ExitButton } from "./InterviewInterface/ExitButton";
@@ -30,6 +32,9 @@ import Loader from "./Loader/Loader";
 import { useNotification } from "@/components/Notifications/NotificationContext";
 import { Notification } from "@/vite-env";
 import { generateReview } from "@/api/gemini.api";
+import AIAvatar, { AIAvatarState } from "./AIAvatar";
+import { useProctoring } from "@/utils/hooks/useProctoring";
+
 
 interface InterviewInterfaceProps {
   interviewDetails: MockInterview;
@@ -60,8 +65,39 @@ const InterviewInterface: React.FC<InterviewInterfaceProps> = ({
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [isCurrentAnswerSaved, setIsCurrentAnswerSaved] = useState(false);
 
+  const [avatarState, setAvatarState] = useState<AIAvatarState>("IDLE");
+  const { integrityScore, violations, activeWarning } = useProctoring({
+    enabled: true,
+    onViolation: (v) => {
+      addNotification({
+        id: Date.now().toString(),
+        type: "error",
+        message: `${v.message}`,
+      });
+    },
+  });
+
+  useEffect(() => {
+    if (isRecording) {
+      setAvatarState("LISTENING");
+    } else {
+      setAvatarState("IDLE");
+    }
+  }, [isRecording]);
+
+  useEffect(() => {
+    if (Questions.length > 0) {
+      setAvatarState("SPEAKING");
+      const timer = setTimeout(() => {
+        setAvatarState("IDLE");
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [currentQuestion, Questions.length]);
+
   const AZURE_SUBSCRIPTION_KEY = import.meta.env.VITE_AZURE_SUBSCRIPTION_KEY;
   const AZURE_REGION = import.meta.env.VITE_AZURE_REGION;
+
 
   const [transcript, setTranscript] = useState(
     "Speech-to-text content will appear here.."
@@ -454,8 +490,45 @@ const InterviewInterface: React.FC<InterviewInterfaceProps> = ({
           </Card>
         </div>
 
-        {/* Right Side - Camera and Controls */}
+        {/* Right Side - Proctoring, Camera, AIAvatar, and Controls */}
         <div className="space-y-4">
+          {/* Proctoring Warning Alert */}
+          {activeWarning && (
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-red-950/80 border border-red-500/50 text-red-200 text-xs shadow-lg animate-pulse">
+              <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+              <span>{activeWarning}</span>
+            </div>
+          )}
+
+          {/* AI Proctoring Live Trust Metric */}
+          <div className="flex items-center justify-between p-3 rounded-xl bg-slate-900/90 border border-slate-800 text-xs">
+            <div className="flex items-center gap-2 text-slate-300">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <span className="font-semibold">AI Proctoring Active</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {violations.length > 0 && (
+                <span className="text-amber-400 font-medium">{violations.length} Infractions</span>
+              )}
+              <span
+                className={`px-2.5 py-0.5 rounded-full font-bold ${
+                  integrityScore > 80
+                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                    : "bg-red-500/20 text-red-400 border border-red-500/30"
+                }`}
+              >
+                Trust Score: {integrityScore}%
+              </span>
+            </div>
+          </div>
+
+          {/* Interactive AI Interviewer Avatar */}
+          <AIAvatar
+            state={avatarState}
+            interviewerName="MockMate Hiring Lead"
+            targetCompany="FAANG / Tier-1 Enterprise Mode"
+          />
+
           <Card className="aspect-video relative bg-zinc-800/50 border-zinc-700 overflow-hidden">
             {isCameraOn && hasPermission ? (
               <video
@@ -475,6 +548,7 @@ const InterviewInterface: React.FC<InterviewInterfaceProps> = ({
               </div>
             )}
           </Card>
+
 
           <div className="flex justify-center gap-4">
             <Button

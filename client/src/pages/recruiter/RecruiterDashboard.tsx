@@ -11,8 +11,10 @@ import {
   ArrowUpRight, 
   CheckCircle2, 
   Search,
-  Filter
+  Filter,
+  ShieldCheck
 } from "lucide-react";
+
 
 
 import { useNotification } from "@/components/Notifications/NotificationContext";
@@ -143,6 +145,8 @@ export const RecruiterDashboard: React.FC = () => {
       atsScore: 89,
       overallScore: 85,
       communicationScore: 88,
+      integrityScore: 98,
+      proctoringFlag: "Clean",
       status: "Interviewed",
       completedAt: "2026-09-03",
     },
@@ -154,6 +158,8 @@ export const RecruiterDashboard: React.FC = () => {
       atsScore: 94,
       overallScore: 91,
       communicationScore: 92,
+      integrityScore: 96,
+      proctoringFlag: "Clean",
       status: "Shortlisted",
       completedAt: "2026-09-04",
     },
@@ -165,10 +171,13 @@ export const RecruiterDashboard: React.FC = () => {
       atsScore: 78,
       overallScore: 74,
       communicationScore: 80,
+      integrityScore: 68,
+      proctoringFlag: "Flagged (2 Tab Switches)",
       status: "Under Review",
       completedAt: "2026-09-02",
     },
   ];
+
 
   return (
     <div className="min-h-screen bg-[#121214] text-slate-100">
@@ -428,6 +437,7 @@ export const RecruiterDashboard: React.FC = () => {
                     <th className="px-6 py-3.5">Target Role</th>
                     <th className="px-6 py-3.5">ATS Score</th>
                     <th className="px-6 py-3.5">AI Interview Score</th>
+                    <th className="px-6 py-3.5">Proctoring Trust</th>
                     <th className="px-6 py-3.5">Status</th>
                     <th className="px-6 py-3.5 text-right">Actions</th>
                   </tr>
@@ -453,6 +463,18 @@ export const RecruiterDashboard: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-xs">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-medium ${
+                            candidate.integrityScore > 80
+                              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                              : "bg-red-500/10 text-red-400 border border-red-500/20"
+                          }`}
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          {candidate.integrityScore}% ({candidate.proctoringFlag})
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-xs">
                         <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-800 text-slate-200 border border-slate-700">
                           {candidate.status}
                         </span>
@@ -464,6 +486,7 @@ export const RecruiterDashboard: React.FC = () => {
                       </td>
                     </tr>
                   ))}
+
                 </tbody>
               </table>
             </div>

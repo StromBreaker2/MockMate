@@ -7,6 +7,9 @@ import { generateAdaptiveFollowUp, generateDomainQuestions } from "../services/a
 import RAGService from "../services/rag.service";
 import WhisperService from "../services/whisper.service";
 import { sendInterviewReportEmail } from "../services/email.service";
+import { evaluateSystemDesignArchitecture } from "../services/systemDesign.service";
+import { optimizeResumeWithGoogleXYZ } from "../services/resumeOptimizer.service";
+import { simulateSalaryNegotiation } from "../services/salaryNegotiation.service";
 
 dotenv.config();
 
@@ -679,5 +682,68 @@ export const handleSendReportEmail = async (req: Request, res: Response) => {
     return res.status(500).json({ message: "Failed to send email report" });
   }
 };
+
+export const handleEvaluateSystemDesign = async (req: Request, res: Response) => {
+  try {
+    const { problemStatement, nodes, edges } = req.body;
+    if (!Array.isArray(nodes)) {
+      return res.status(400).json({ message: "Nodes array is required" });
+    }
+
+    const evaluation = await evaluateSystemDesignArchitecture(
+      problemStatement || "Scalable Distributed System",
+      nodes,
+      Array.isArray(edges) ? edges : []
+    );
+
+    return res.status(200).json(evaluation);
+  } catch (error: any) {
+    console.error("Error in system design evaluation handler:", error);
+    return res.status(500).json({ message: "Failed to evaluate system design" });
+  }
+};
+
+export const handleOptimizeResume = async (req: Request, res: Response) => {
+  try {
+    const { rawResumeText, targetRole, jobDescription } = req.body;
+    if (!rawResumeText) {
+      return res.status(400).json({ message: "rawResumeText is required" });
+    }
+
+    const optimization = await optimizeResumeWithGoogleXYZ(
+      rawResumeText,
+      targetRole || "Software Engineer",
+      jobDescription
+    );
+
+    return res.status(200).json(optimization);
+  } catch (error: any) {
+    console.error("Error in resume optimization handler:", error);
+    return res.status(500).json({ message: "Failed to optimize resume" });
+  }
+};
+
+export const handleSalaryNegotiation = async (req: Request, res: Response) => {
+  try {
+    const { jobTitle, level, initialOffer, candidateCounter, conversationHistory } = req.body;
+    if (!initialOffer || !candidateCounter) {
+      return res.status(400).json({ message: "initialOffer and candidateCounter are required" });
+    }
+
+    const analysis = await simulateSalaryNegotiation(
+      jobTitle || "Software Engineer",
+      level || "L4 / Mid-Level",
+      initialOffer,
+      candidateCounter,
+      Array.isArray(conversationHistory) ? conversationHistory : []
+    );
+
+    return res.status(200).json(analysis);
+  } catch (error: any) {
+    console.error("Error in salary negotiation handler:", error);
+    return res.status(500).json({ message: "Failed to simulate salary negotiation" });
+  }
+};
+
 
 

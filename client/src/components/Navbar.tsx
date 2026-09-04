@@ -77,6 +77,28 @@ export const Navbar: React.FC = () => {
                     Resume & ATS
                   </Link>
                   <Link
+                    to="/system-design"
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${
+                      location.pathname === "/system-design"
+                        ? "bg-slate-800 text-indigo-400 border border-slate-700"
+                        : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                    }`}
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    System Design
+                  </Link>
+                  <Link
+                    to="/salary-negotiation"
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${
+                      location.pathname === "/salary-negotiation"
+                        ? "bg-slate-800 text-emerald-400 border border-slate-700"
+                        : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                    }`}
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Salary Simulator
+                  </Link>
+                  <Link
                     to="/roadmap"
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${
                       location.pathname === "/roadmap"
